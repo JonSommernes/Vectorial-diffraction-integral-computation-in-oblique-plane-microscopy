@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from time import time
 import sys
 from functions import *
+from scipy.io import savemat
 
 def R_x(alpha):
     return np.array(((np.cos(alpha), np.zeros_like(alpha), np.sin(alpha)),
@@ -68,14 +69,68 @@ def find_angles(NA_6, NA_5, NA_4, n_4, n_5, alpha_s, k0, num_slices):
     for i in range(num_slices):
         k4[:,:,i] = R_x_as@k4_s[:,:,i]
 
-    phi_4 = np.real(np.arctan2(k4[0], k4[1]))
-    theta_4 = (np.arcsin(np.sqrt(k4[0]**2+k4[1]**2)))
-    theta_4 = (theta_4 > np.arcsin(NA_4))*np.arcsin(NA_4) + (theta_4 < np.arcsin(NA_4))*theta_4
+    phi_4 = (np.arctan2(k4[1], k4[0]))
+    theta_4 = np.arctan2(np.sqrt(k4[0]**2+k4[1]**2),k4[2])
+    # theta_4 = np.arccos(k4[2]/np.sqrt(k4[0]**2+k4[1]**2+k4[2]**2))
+    # theta_4 = (np.arcsin(np.sqrt(k4[0]**2+k4[1]**2)))
+    # theta_4 = (theta_4 > np.arcsin(NA_4))*np.arcsin(NA_4) + (theta_4 < np.arcsin(NA_4))*theta_4
+
+
+    # plt.subplot(211)
+    # plt.imshow(theta_4)
+    # plt.subplot(212)
+    # plt.imshow(theta_4s)
+    plt.subplot(221)
+    plt.imshow(k4[0])
+    plt.subplot(222)
+    plt.imshow(k4[1])
+    plt.subplot(223)
+    plt.imshow(k4[2])
+    plt.draw()
+    plt.waitforbuttonpress(0)
+    plt.close()
+    plt.imshow(phi_4)
+    plt.draw()
+    plt.waitforbuttonpress(0)
+    plt.close()
 
     angles = [phi_4, phi_4s, phi_5s, phi_6,
               theta_4, theta_4s, theta_5s, theta_6]
 
     return angles
+
+def find_angles_test(NA_6, NA_5, NA_4, n_4, n_5, alpha_s, k0, num_slices):
+    M = (num_slices-1)/2
+    m = np.linspace(-M,M,num_slices)
+    xx, yy = np.meshgrid(m,m)
+    R = np.sqrt(xx**2 + yy**2)
+    delta_k = k0 * NA_4 / M
+
+    phi_4 = np.real(np.arctan2(xx, yy))
+    theta_4 = (np.arcsin(delta_k*R / k0 ))
+    theta_4 = np.nan_to_num(theta_4, nan=np.nanmax(theta_4))
+
+    print(np.amax(theta_4))
+
+    # k4_s = np.array((np.sin(theta_4s) * np.cos(phi_4s),
+    #                  np.sin(theta_4s) * np.sin(phi_4s),
+    #                  np.cos(theta_4s)))
+    #
+    # k4 = np.zeros_like(k4_s)
+    # for i in range(num_slices):
+    #     k4[:,:,i] = R_x_as@k4_s[:,:,i]
+    #
+    # R_x_as = R_x(alpha_s)
+    #
+    # phi_4s = phi_5s
+    # theta_4s = np.arcsin(n_5*np.sin(theta_5s)/n_4)
+
+
+
+
+    plt.imshow(theta_4)
+    plt.show()
+    exit()
 
 def find_E_fields(angles, Ae, p, alpha_s):
     phi_4, phi_4s, phi_5s, phi_6, theta_4, theta_4s, theta_5s, theta_6 = angles
@@ -157,7 +212,7 @@ if __name__ == '__main__':
     if anisotropy == 0:
         Ae = 1
     elif anisotropy == 0.4:
-        Ae = d@P
+        Ae = p@P
     tilt = 30 # [ 0 / 20 / 30]
     lightsheet_polarization = 'p' # ['p' / 's']
 
@@ -186,10 +241,6 @@ if __name__ == '__main__':
 
     E6 = find_E_fields(angles, Ae, p, alpha_s)
 
-    #Do struff after this correct
-
-    E_mat = E6
-    # E_mat = E6*pupil.reshape(MM,MM,1)*circshift_pupil.reshape(MM,MM,1)
 
     back_aperture_obliqueness = 1 / np.cos(theta_6)
 
@@ -199,6 +250,18 @@ if __name__ == '__main__':
     R = np.sqrt(xx**2 + yy**2)
     k_xy = delta_k * R
     k_z = np.sqrt(k0**2 - k_xy**2)
+
+
+    pupil = (theta_5s<np.arcsin(NA_5/n_5))*1
+
+    shift = int(tilt/90*M)
+
+    circshift_pupil = np.roll(pupil,shift,axis=1)
+    pupil_prod = pupil*circshift_pupil
+
+    #Do struff after this correct
+    # E_mat = E6
+    E_mat = E6*pupil_prod.reshape(num_slices,num_slices,1)
 
     voxel_size = 1e-6 # um
     N = int(3 * (( np.floor((( wavelength * M / (NA_6 * voxel_size)) / 3) / 2)) * 2 + 1))
@@ -211,5 +274,26 @@ if __name__ == '__main__':
 
     intensity /= np.amax(intensity)
     img_16 = ((2**16-1)*intensity).astype(np.uint16)
+
+    XZ = np.log(img_16[num_slices//2,:,:])
+
+    cont_im = XZ/XZ.max()
+    gamm_im = cont_im**4
+
+    plt.imshow(gamm_im)
+    plt.draw()
+    plt.waitforbuttonpress(0)
+    plt.close()
+
+    YZ = np.log(img_16[:,num_slices//2,:])
+
+    cont_im = YZ/YZ.max()
+    gamm_im = cont_im**4
+
+    plt.imshow(gamm_im)
+    plt.draw()
+    plt.waitforbuttonpress(0)
+    plt.close()
+
 
     save_stack(img_16,'image/')
