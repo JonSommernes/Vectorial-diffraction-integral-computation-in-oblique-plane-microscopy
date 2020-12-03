@@ -144,11 +144,40 @@ def E_0(p, phi, theta, Ae):
     k0 = np.transpose(k_0(phi,theta),(1,2,0))
     return Ae*np.cross(np.cross(k0,p),k0)
 
-def find_angles(NA_6, NA_5, NA_4, n_4, n_5, alpha_s, k0, num_slices, xx, yy, R, delta_k):
+def find_angles(NAs, n_i, alpha_s, k0, num_slices, meshgrids, delta_k, plot=False):
+    """Calculating all angle based on NA, refractive indexec,
+    image resolution, and wavenumber.
+
+    Parameters
+    ----------
+    NAs : List
+        List of lens NAs for lens 6, 5, and 4 respectively
+    n_i : List
+        List of refractive index 5, and 4 respectively
+    alpha_s : float
+        Angle between optical axes of the system
+    k0 : float
+        Wavenumber of the emission light
+    num_slices : int
+        Image resolution
+    meshgrids : List
+        meshgrid xx, yy, and R respectively
+    delta_k : float
+        k*NA/Magnification
+    plot : boolean
+        If true debugging plots will show
+
+    Returns
+    -------
+    List
+        Angles for position 4, 4s, 5s, and 6 in azimuth and polar respectively
+    """
+    NA_6, NA_5, NA_4 = NAs
+    n_5, n_4 = n_i
+    xx, yy, R = meshgrids
+
     phi_6 = np.real(np.arctan2(xx, yy))
     theta_6 = (np.arcsin(delta_k*R / k0 ))
-    # theta_6 = (theta_6 > np.arcsin(NA_6))*np.arcsin(NA_6) + (theta_6 < np.arcsin(NA_6))*theta_6
-
 
     phi_5s = phi_6
     theta_5s = np.arcsin((NA_5/(n_5*NA_6))*np.sin(theta_6))
@@ -156,13 +185,11 @@ def find_angles(NA_6, NA_5, NA_4, n_4, n_5, alpha_s, k0, num_slices, xx, yy, R, 
     phi_4s = phi_5s
     theta_4s = np.arcsin(n_5*np.sin(theta_5s)/n_4)
 
-
     R_x_as = R_x(alpha_s)
 
     k4_s = np.array((np.sin(theta_4s) * np.cos(phi_4s),
                      np.sin(theta_4s) * np.sin(phi_4s),
                      np.cos(theta_4s)))
-
 
     k4 = np.zeros_like(k4_s)
     for i in range(num_slices):
@@ -172,149 +199,200 @@ def find_angles(NA_6, NA_5, NA_4, n_4, n_5, alpha_s, k0, num_slices, xx, yy, R, 
 
     phi_4 = (np.arctan2(k4[1], k4[0]))
     theta_4 = np.arctan2(np.sqrt(k4[0]**2+k4[1]**2),k4[2])
-    # theta_4 = np.arccos(k4[2]/np.sqrt(k4[0]**2+k4[1]**2+k4[2]**2))
-    # theta_4 = (np.arcsin(np.sqrt(k4[0]**2+k4[1]**2)))
-    # theta_4 = (theta_4 > np.arcsin(NA_4))*np.arcsin(NA_4) + (theta_4 < np.arcsin(NA_4))*theta_4
 
-    # plt.subplot(131)
-    # plt.imshow(np.abs(k4_s[0]))
-    # plt.subplot(132)
-    # plt.imshow(np.abs(k4_s[1]))
-    # plt.subplot(133)
-    # plt.imshow(k4_s[2])
-    # plt.show()
-    #
-    # plt.subplot(131)
-    # plt.imshow(np.abs(k4[0]))
-    # plt.subplot(132)
-    # plt.imshow(np.abs(k4[1]))
-    # plt.subplot(133)
-    # plt.imshow(k4[2])
-    # plt.show()
-    #
     min = np.nanmin(theta_4)
     tmp = np.where(theta_4==min)
     diff = (tmp[1]-tmp[0])[0]
-    plt.subplot(141)
-    plt.imshow(theta_6,cmap='inferno')
-    plt.colorbar()
-    plt.subplot(142)
-    plt.imshow(theta_5s,cmap='inferno')
-    plt.colorbar()
-    plt.subplot(143)
-    plt.imshow(theta_4s,cmap='inferno')
-    plt.colorbar()
-    plt.subplot(144)
-    plt.imshow(theta_4,cmap='inferno')
-    plt.colorbar()
-    plt.show()
-    #
-    # plt.subplot(141)
-    # plt.imshow(phi_6,cmap='inferno')
-    # plt.colorbar()
-    # plt.subplot(142)
-    # plt.imshow(phi_5s,cmap='inferno')
-    # plt.colorbar()
-    # plt.subplot(143)
-    # plt.imshow(phi_4s,cmap='inferno')
-    # plt.colorbar()
-    # plt.subplot(144)
-    # plt.imshow(phi_4,cmap='inferno')
-    # plt.colorbar()
-    # plt.show()
+
+    if plot == True:
+        plt.subplot(131)
+        plt.imshow(np.abs(k4_s[0]))
+        plt.subplot(132)
+        plt.imshow(np.abs(k4_s[1]))
+        plt.subplot(133)
+        plt.imshow(k4_s[2])
+        plt.show()
+
+        plt.subplot(131)
+        plt.imshow(np.abs(k4[0]))
+        plt.subplot(132)
+        plt.imshow(np.abs(k4[1]))
+        plt.subplot(133)
+        plt.imshow(k4[2])
+        plt.show()
+
+        plt.subplot(141)
+        plt.imshow(theta_6,cmap='inferno')
+        plt.colorbar()
+        plt.subplot(142)
+        plt.imshow(theta_5s,cmap='inferno')
+        plt.colorbar()
+        plt.subplot(143)
+        plt.imshow(theta_4s,cmap='inferno')
+        plt.colorbar()
+        plt.subplot(144)
+        plt.imshow(theta_4,cmap='inferno')
+        plt.colorbar()
+        plt.show()
+
+        plt.subplot(141)
+        plt.imshow(phi_6,cmap='inferno')
+        plt.colorbar()
+        plt.subplot(142)
+        plt.imshow(phi_5s,cmap='inferno')
+        plt.colorbar()
+        plt.subplot(143)
+        plt.imshow(phi_4s,cmap='inferno')
+        plt.colorbar()
+        plt.subplot(144)
+        plt.imshow(phi_4,cmap='inferno')
+        plt.colorbar()
+        plt.show()
+
 
     angles = [phi_4, phi_4s, phi_5s, phi_6,
               theta_4, theta_4s, theta_5s, theta_6, diff]
 
     return angles
 
-def find_E_fields(angles, Ae, p, alpha_s):
+def find_E_fields(angles, Ae, p, alpha_s, plot=False):
+    """Calculating electric field in image space
+
+    Parameters
+    ----------
+    angles : list
+        Output of find_angles function
+    Ae : float
+        Anisotropy coeficient
+    p : floating point vector
+        Polarization of dipole
+    alpha_s : float
+        Angle between optical axes of the system
+    plot : boolean
+        If true debugging plots witt show
+
+    Returns
+    -------
+    floating point array
+        Full electric field in image space (not phase information)
+    """
     phi_4, phi_4s, phi_5s, phi_6, theta_4, theta_4s, theta_5s, theta_6, diff = angles
 
+    #Finding the initial electric field
     E4 = E_0(p, phi_4, theta_4, Ae)
 
+    #Rotating the coordinate system to the second optical axis
     R_x_as = R_x(alpha_s)
     E4_s = np.einsum('ji,abi->abj', R_x_as, E4)
 
+    #Defines the Rotation matrices before and after a refractive index change
     Rz_4 = R_z(phi_4s)
-
     Rz_5 = R_z(phi_5s)
 
-    t_p = 2 * np.cos(theta_4s) / (np.cos(theta_5s) + n_5 * np.cos(theta_4s))
-    t_s = 2 * np.cos(theta_4s) / (np.cos(theta_4s) + n_5 * np.cos(theta_5s))
-
-    # Fresnel matrix
+    #Defining the Fresnel coefficients for the refracive index change to snouty
+    t_p = 2 * np.cos(theta_4s)/(np.cos(theta_5s)+n_5*np.cos(theta_4s))
+    t_s = 2 * np.cos(theta_4s)/(np.cos(theta_4s)+n_5*np.cos(theta_5s))
     Ft = Fresnel(t_p,t_s)
 
+    #Rotation matrix in y before and after refractive index change
     R_ys_4 = R_y(theta_4s)
-
-    # Rotation matrix from meridional/saggital to S/P
     R_ys_5 = R_y(theta_5s)
 
-    # Jones matrix calculus of Fresnel-refraction
+    #Inversing the rotation matrices in y and z after refractive index change
     Rz_5_inv = np.linalg.inv(np.transpose(Rz_5,(2,3,0,1))).transpose((2,3,0,1))
     R_ys_5_inv = np.linalg.inv(np.transpose(R_ys_5,(2,3,0,1))).transpose((2,3,0,1))
+
+    #Makes the transformation matrix and dots with field 4s
     transform_5s = (Rz_5_inv * R_ys_5_inv * Ft * R_ys_4 * Rz_4).transpose((2,3,0,1))
     E5_s = np.einsum('abji,abi->abj', transform_5s, E4_s)
 
+    #Finds the lens refraction of snouty lens
     L5 = L_refraction(theta_5s)
 
-    # Lens apodisation to obey the Abbe sine condition in focussing
+    #Lens apodisation for snouty
     A5 = np.sqrt(n_5) / np.sqrt(np.cos(theta_5s))
 
+    #Makes the transformation matrix and dots with field 5s
     transform_5 = (A5 * Rz_5_inv * L5 * Rz_5).transpose((2,3,0,1))
     E5 = np.einsum('abji,abi->abj', transform_5, E5_s)
 
+    #Defines rotation matrix in z and its inverse for lens 6
     Rz_6 = R_z(phi_6)
     Rz_6_inv = np.linalg.inv(np.transpose(Rz_6,(2,3,0,1))).transpose((2,3,0,1))
 
-    # Lens refraction - the tube lens refracts clock-wise, so theta needs to be
-    # with negative sign
+    #Finds the lens refraction of tube lens
     L6 = L_refraction(theta_6)
 
-    # Lens apodisation to obey the Abbe sine condition in focussing
+    #Lens apodization of tube lens
     A6 = np.sqrt(np.cos(theta_6))
 
+    #Makes the transformation matrix and dots with field 5
     transform_6 = (A6 * Rz_6_inv * L6 * Rz_6).transpose((2,3,0,1))
     E6 = np.einsum('abji,abi->abj', transform_6, E5)
+
+    #Replaces all NaN values with 0 in the final E_field
     E6 = np.nan_to_num(E6)
 
-    # plt.subplot(131)
-    # plt.imshow(E4[:,:,0],cmap='inferno')
-    # plt.colorbar()
-    # plt.subplot(132)
-    # plt.imshow(E4[:,:,1],cmap='inferno')
-    # plt.colorbar()
-    # plt.subplot(133)
-    # plt.imshow(E4[:,:,2],cmap='inferno')
-    # plt.colorbar()
-    # plt.show()
-    #
-    # plt.subplot(131)
-    # plt.imshow(E5[:,:,0],cmap='inferno')
-    # plt.colorbar()
-    # plt.subplot(132)
-    # plt.imshow(E5[:,:,1],cmap='inferno')
-    # plt.colorbar()
-    # plt.subplot(133)
-    # plt.imshow(E5[:,:,2],cmap='inferno')
-    # plt.colorbar()
-    # plt.show()
-    #
-    # plt.subplot(131)
-    # plt.imshow(E6[:,:,0],cmap='inferno')
-    # plt.colorbar()
-    # plt.subplot(132)
-    # plt.imshow(E6[:,:,1],cmap='inferno')
-    # plt.colorbar()
-    # plt.subplot(133)
-    # plt.imshow(E6[:,:,2],cmap='inferno')
-    # plt.colorbar()
-    # plt.show()
+    if plot == True:
+        plt.subplot(131)
+        plt.imshow(E4[:,:,0],cmap='inferno')
+        plt.colorbar()
+        plt.subplot(132)
+        plt.imshow(E4[:,:,1],cmap='inferno')
+        plt.colorbar()
+        plt.subplot(133)
+        plt.imshow(E4[:,:,2],cmap='inferno')
+        plt.colorbar()
+        plt.show()
+
+        plt.subplot(131)
+        plt.imshow(E5[:,:,0],cmap='inferno')
+        plt.colorbar()
+        plt.subplot(132)
+        plt.imshow(E5[:,:,1],cmap='inferno')
+        plt.colorbar()
+        plt.subplot(133)
+        plt.imshow(E5[:,:,2],cmap='inferno')
+        plt.colorbar()
+        plt.show()
+
+        plt.subplot(131)
+        plt.imshow(E6[:,:,0],cmap='inferno')
+        plt.colorbar()
+        plt.subplot(132)
+        plt.imshow(E6[:,:,1],cmap='inferno')
+        plt.colorbar()
+        plt.subplot(133)
+        plt.imshow(E6[:,:,2],cmap='inferno')
+        plt.colorbar()
+        plt.show()
+
 
     return E6
 
 def find_intensity(E_mat,num_slices,N,back_aperture_obliqueness,z_val,k_z):
+    """Find intensity image from electric field
+
+    Parameters
+    ----------
+    E_mat : floating point array
+        Electric field in image space
+    num_slices : int
+        Image resolution
+    N : int
+        Padding size for fourier transform
+    back_aperture_obliqueness : floating point array
+        ???????????????????????????????????????????
+    z_val : floating point vector
+        z-values for all image planes
+    k_z : floating point array
+        ???????????????????????????????????????????
+
+    Returns
+    -------
+    floating point array
+        Image stack in floating point values
+    """
     M = (num_slices-1)//2
 
     E_field = np.zeros((num_slices,num_slices,3,num_slices),dtype=np.complex128)
@@ -335,6 +413,13 @@ def find_intensity(E_mat,num_slices,N,back_aperture_obliqueness,z_val,k_z):
     return intensity
 
 if __name__ == '__main__':
+    #Fidning the wavenumber of the light
+    wavelength = 500e-9
+    k0 = 2 * np.pi / wavelength
+
+    #Defining voxel size of the camera
+    voxel_size = 5e-6 # um
+
     #Defining the polarization of the dipole
     p_phi, p_theta = 0, 0
     p = np.array((np.sin(p_theta)*np.cos(p_phi),
@@ -354,13 +439,6 @@ if __name__ == '__main__':
     alpha_s = 90-tilt
     O_1 = np.array((0,0,1))
     O_2 = np.array((0,np.sin(alpha_s),np.cos(alpha_s)))
-
-    #Fidning the wavenumber of the light
-    wavelength = 500e-9
-    k0 = 2 * np.pi / wavelength
-
-    #Defining voxel size of the camera
-    voxel_size = 5e-6 # um
 
     #Defining the lens apertures
     NA_1 = 1.27
@@ -389,7 +467,10 @@ if __name__ == '__main__':
     k_z = np.sqrt(k0**2 - k_xy**2)
 
     #Finding the angles corresponding to position at objective lens
-    angles = find_angles(NA_6, NA_5, NA_4, n_4, n_5, alpha_s, k0, num_slices, xx, yy, R, delta_k)
+    NAs = [NA_6, NA_5, NA_4]
+    n_i = [n_5, n_4]
+    meshgrids = [xx, yy, R]
+    angles = find_angles(NAs, n_i, alpha_s, k0, num_slices, meshgrids, delta_k)
     phi_4, phi_4s, phi_5s, phi_6, theta_4, theta_4s, theta_5s, theta_6, diff = angles
 
     #Finding the electrical field after lens 6
@@ -420,9 +501,6 @@ if __name__ == '__main__':
 
     #Propogating through pupils
     E_mat = E6*effective_aperture
-
-    plt.imshow(E_mat[:,:,0])
-    plt.show()
 
     #Finding the padding size for fourier transforms
     N = int(3*((np.floor(((wavelength*M/(NA_6*voxel_size))/3)/2))*2+1))
