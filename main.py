@@ -6,36 +6,141 @@ from functions import *
 from scipy.io import savemat
 
 def R_x(alpha):
-    return np.array(((np.cos(alpha), np.zeros_like(alpha), np.sin(alpha)),
-                    (np.zeros_like(alpha), np.ones_like(alpha), np.zeros_like(alpha)),
-                    (-np.sin(alpha), np.zeros_like(alpha), np.cos(alpha))))
+    """Making the coordinate rotation matrix for clockwise x-rotation
 
-def R_y(theta):
-    return np.array(((np.cos(theta), np.zeros_like(theta), -np.sin(theta)),
-                     (np.zeros_like(theta), np.ones_like(theta), np.zeros_like(theta)),
-                     (np.sin(theta), np.zeros_like(theta), np.cos(theta))))
+    Parameters
+    ----------
+    alpha : floating point array
+        Rotation angle in radians
 
-def R_z(phi):
-    return np.array(((np.cos(phi), np.sin(phi), np.zeros_like(phi)),
-                     (-np.sin(phi), np.cos(phi), np.zeros_like(phi)),
-                     (np.zeros_like(phi), np.zeros_like(phi), np.ones_like(phi))))
+    Returns
+    -------
+    floating point array
+        Complete rotation matrix
+    """
+    zero = np.zeros_like(alpha)
+    one = np.ones_like(alpha)
+    return np.array(((np.cos(alpha), zero, np.sin(alpha)),
+                    (zero, one, zero),
+                    (-np.sin(alpha), zero, np.cos(alpha))))
+
+def R_y(alpha):
+    """Making the coordinate rotation matrix for clockwise y-rotation
+
+    Parameters
+    ----------
+    alpha : floating point array
+        Rotation angle in radians
+
+    Returns
+    -------
+    floating point array
+        Complete rotation matrix
+    """
+    zero = np.zeros_like(alpha)
+    one = np.ones_like(alpha)
+    return np.array(((np.cos(alpha), zero, -np.sin(alpha)),
+                     (zero, one, zero),
+                     (np.sin(alpha), zero, np.cos(alpha))))
+
+def R_z(alpha):
+    """Making the coordinate rotation matrix for clockwise z-rotation
+
+    Parameters
+    ----------
+    alpha : floating point array
+        Rotation angle in radians
+
+    Returns
+    -------
+    floating point array
+        Complete rotation matrix
+    """
+    zero = np.zeros_like(alpha)
+    one = np.ones_like(alpha)
+    return np.array(((np.cos(alpha), np.sin(alpha), zero),
+                     (-np.sin(alpha), np.cos(alpha), zero),
+                     (zero, zero, one)))
 
 def Fresnel(tp,ts):
-    return np.array(((tp, np.zeros_like(tp), np.zeros_like(tp)),
-                     (np.zeros_like(tp), ts, np.zeros_like(tp)),
-                     (np.zeros_like(tp), np.zeros_like(tp), np.ones_like(tp))))
+    """Making the Fresnel transmission matrix
+
+    Parameters
+    ----------
+    tp : type
+        Parallel transmission coefficient
+    ts : float
+        Sagittal transmission coefficient
+
+    Returns
+    -------
+    floating point array
+        Complete Fresnel matrix
+    """
+    zero = np.zeros_like(alpha)
+    one = np.ones_like(alpha)
+    return np.array(((tp, zero, zero),
+                     (zero, ts, zero),
+                     (zero, zero, one)))
 
 def L_refraction(theta):
-    return np.array(((np.cos(-theta),np.zeros_like(theta),np.sin(-theta)),
-                     (np.zeros_like(theta),np.ones_like(theta),np.zeros_like(theta)),
-                     (-np.sin(-theta),np.zeros_like(theta),np.cos(-theta))))
+    """Making the ray refraction matrix for the meridional plane
+
+    Parameters
+    ----------
+    theta : floating point array
+        Refraction angle in radians
+
+    Returns
+    -------
+    floating point array
+        Complete refraction matrix
+    """
+    zero = np.zeros_like(alpha)
+    one = np.ones_like(alpha)
+    return np.array(((np.cos(-theta),zero,np.sin(-theta)),
+                     (zero,one,zero),
+                     (-np.sin(-theta),zero,np.cos(-theta))))
 
 def k_0(phi, theta):
+    """Generating x-, y-, and z-component of k0 based on lens position
+
+    Parameters
+    ----------
+    phi : floating point array
+        Azimuthal angle on lens
+    theta : floating point array
+        Polar angle on lens
+
+    Returns
+    -------
+    floating point array
+        k0 in Cartesian coordinates
+    """
     return np.array((np.sin(theta)*np.cos(phi),
                      np.sin(theta)*np.sin(phi),
                      np.cos(theta)))
 
 def E_0(p, phi, theta, Ae):
+    """Generating the initial electric field based
+       on dipole orientation and anisotropy
+
+    Parameters
+    ----------
+    p : floating point array
+        Polarization of dipole in Cartesian coordinates
+    phi : floating point array
+        Lens azimuth angle
+    theta : floating point array
+        Lens polar angle
+    Ae : float
+        Anisotropy coefficient
+
+    Returns
+    -------
+    floating point array
+        Initial electric field
+    """
     k0 = np.transpose(k_0(phi,theta),(1,2,0))
     return Ae*np.cross(np.cross(k0,p),k0)
 
@@ -48,7 +153,7 @@ def find_angles(NA_6, NA_5, NA_4, n_4, n_5, alpha_s, k0, num_slices):
 
     phi_6 = np.real(np.arctan2(xx, yy))
     theta_6 = (np.arcsin(delta_k*R / k0 ))
-    theta_6 = (theta_6 > np.arcsin(NA_6))*np.arcsin(NA_6) + (theta_6 < np.arcsin(NA_6))*theta_6
+    # theta_6 = (theta_6 > np.arcsin(NA_6))*np.arcsin(NA_6) + (theta_6 < np.arcsin(NA_6))*theta_6
 
 
     phi_5s = phi_6
@@ -69,68 +174,62 @@ def find_angles(NA_6, NA_5, NA_4, n_4, n_5, alpha_s, k0, num_slices):
     for i in range(num_slices):
         k4[:,:,i] = R_x_as@k4_s[:,:,i]
 
+    k4[2] = -k4[2]
+
     phi_4 = (np.arctan2(k4[1], k4[0]))
     theta_4 = np.arctan2(np.sqrt(k4[0]**2+k4[1]**2),k4[2])
     # theta_4 = np.arccos(k4[2]/np.sqrt(k4[0]**2+k4[1]**2+k4[2]**2))
     # theta_4 = (np.arcsin(np.sqrt(k4[0]**2+k4[1]**2)))
     # theta_4 = (theta_4 > np.arcsin(NA_4))*np.arcsin(NA_4) + (theta_4 < np.arcsin(NA_4))*theta_4
 
+    plt.subplot(131)
+    plt.imshow(np.abs(k4_s[0]))
+    plt.subplot(132)
+    plt.imshow(np.abs(k4_s[1]))
+    plt.subplot(133)
+    plt.imshow(k4_s[2])
+    plt.show()
 
-    # plt.subplot(211)
-    # plt.imshow(theta_4)
-    # plt.subplot(212)
-    # plt.imshow(theta_4s)
-    plt.subplot(221)
-    plt.imshow(k4[0])
-    plt.subplot(222)
-    plt.imshow(k4[1])
-    plt.subplot(223)
+    plt.subplot(131)
+    plt.imshow(np.abs(k4[0]))
+    plt.subplot(132)
+    plt.imshow(np.abs(k4[1]))
+    plt.subplot(133)
     plt.imshow(k4[2])
-    plt.draw()
-    plt.waitforbuttonpress(0)
-    plt.close()
-    plt.imshow(phi_4)
-    plt.draw()
-    plt.waitforbuttonpress(0)
-    plt.close()
+    plt.show()
+
+    plt.subplot(141)
+    plt.imshow(theta_6,cmap='inferno')
+    plt.colorbar()
+    plt.subplot(142)
+    plt.imshow(theta_5s,cmap='inferno')
+    plt.colorbar()
+    plt.subplot(143)
+    plt.imshow(theta_4s,cmap='inferno')
+    plt.colorbar()
+    plt.subplot(144)
+    plt.imshow(theta_4,cmap='inferno')
+    plt.colorbar()
+    plt.show()
+
+    plt.subplot(141)
+    plt.imshow(phi_6,cmap='inferno')
+    plt.colorbar()
+    plt.subplot(142)
+    plt.imshow(phi_5s,cmap='inferno')
+    plt.colorbar()
+    plt.subplot(143)
+    plt.imshow(phi_4s,cmap='inferno')
+    plt.colorbar()
+    plt.subplot(144)
+    plt.imshow(phi_4,cmap='inferno')
+    plt.colorbar()
+    plt.show()
 
     angles = [phi_4, phi_4s, phi_5s, phi_6,
               theta_4, theta_4s, theta_5s, theta_6]
 
     return angles
-
-def find_angles_test(NA_6, NA_5, NA_4, n_4, n_5, alpha_s, k0, num_slices):
-    M = (num_slices-1)/2
-    m = np.linspace(-M,M,num_slices)
-    xx, yy = np.meshgrid(m,m)
-    R = np.sqrt(xx**2 + yy**2)
-    delta_k = k0 * NA_4 / M
-
-    phi_4 = np.real(np.arctan2(xx, yy))
-    theta_4 = (np.arcsin(delta_k*R / k0 ))
-    theta_4 = np.nan_to_num(theta_4, nan=np.nanmax(theta_4))
-
-    print(np.amax(theta_4))
-
-    # k4_s = np.array((np.sin(theta_4s) * np.cos(phi_4s),
-    #                  np.sin(theta_4s) * np.sin(phi_4s),
-    #                  np.cos(theta_4s)))
-    #
-    # k4 = np.zeros_like(k4_s)
-    # for i in range(num_slices):
-    #     k4[:,:,i] = R_x_as@k4_s[:,:,i]
-    #
-    # R_x_as = R_x(alpha_s)
-    #
-    # phi_4s = phi_5s
-    # theta_4s = np.arcsin(n_5*np.sin(theta_5s)/n_4)
-
-
-
-
-    plt.imshow(theta_4)
-    plt.show()
-    exit()
 
 def find_E_fields(angles, Ae, p, alpha_s):
     phi_4, phi_4s, phi_5s, phi_6, theta_4, theta_4s, theta_5s, theta_6 = angles
@@ -181,6 +280,40 @@ def find_E_fields(angles, Ae, p, alpha_s):
 
     transform_6 = (A6 * Rz_6_inv * L6 * Rz_6).transpose((2,3,0,1))
     E6 = np.einsum('abji,abi->abj', transform_6, E5)
+    E6 = np.nan_to_num(E6)
+
+    plt.subplot(131)
+    plt.imshow(E4[:,:,0],cmap='inferno')
+    plt.colorbar()
+    plt.subplot(132)
+    plt.imshow(E4[:,:,1],cmap='inferno')
+    plt.colorbar()
+    plt.subplot(133)
+    plt.imshow(E4[:,:,2],cmap='inferno')
+    plt.colorbar()
+    plt.show()
+
+    plt.subplot(131)
+    plt.imshow(E5[:,:,0],cmap='inferno')
+    plt.colorbar()
+    plt.subplot(132)
+    plt.imshow(E5[:,:,1],cmap='inferno')
+    plt.colorbar()
+    plt.subplot(133)
+    plt.imshow(E5[:,:,2],cmap='inferno')
+    plt.colorbar()
+    plt.show()
+
+    plt.subplot(131)
+    plt.imshow(E6[:,:,0],cmap='inferno')
+    plt.colorbar()
+    plt.subplot(132)
+    plt.imshow(E6[:,:,1],cmap='inferno')
+    plt.colorbar()
+    plt.subplot(133)
+    plt.imshow(E6[:,:,2],cmap='inferno')
+    plt.colorbar()
+    plt.show()
 
     return E6
 
@@ -205,95 +338,117 @@ def find_intensity(E_mat,num_slices,N,back_aperture_obliqueness,z_val,k_z):
     return intensity
 
 if __name__ == '__main__':
+    #Defining the polarization of the dipole
     p_phi, p_theta = 0, 0
-    p = np.array((np.sin(p_theta)*np.cos(p_phi), np.sin(p_theta)*np.sin(p_phi), np.cos(p_theta)))
+    p = np.array((np.sin(p_theta)*np.cos(p_phi),
+                  np.sin(p_theta)*np.sin(p_phi),
+                  np.cos(p_theta)))
 
+    #Defining the light sheet parameters
+    tilt = 30 # [ 0 / 20 / 30]
     anisotropy = 0 # [0  / 0.4]
+    lightsheet_polarization = 'p' # ['p' / 's']
     if anisotropy == 0:
         Ae = 1
     elif anisotropy == 0.4:
         Ae = p@P
-    tilt = 30 # [ 0 / 20 / 30]
-    lightsheet_polarization = 'p' # ['p' / 's']
 
     #Optical axis unit vectors
     alpha_s = 90-tilt
     O_1 = np.array((0,0,1))
     O_2 = np.array((0,np.sin(alpha_s),np.cos(alpha_s)))
 
+    #Fidning the wavenumber of the light
     wavelength = 500e-9
     k0 = 2 * np.pi / wavelength
 
+    #Defining voxel size of the camera
+    voxel_size = 1e-6 # um
+
+    #Defining the lens apertures
     NA_1 = 1.27
     NA_4 = 1
     NA_5 = 1
     Mag = 40
     NA_6 = NA_5/Mag
 
+    #Defining refractive indexec
     n_1 = 1.33
     n_4 = 1
     n_5 = 1.7
 
+    #Defining the resolution and half pixel length
     num_slices = 127
     M = (num_slices-1)/2
+
+    #Finding the angles corresponding to position at objective lens
     angles = find_angles(NA_6, NA_5, NA_4, n_4, n_5, alpha_s, k0, num_slices)
     phi_4, phi_4s, phi_5s, phi_6, theta_4, theta_4s, theta_5s, theta_6 = angles
 
+    #Finding the electrical field after lens 6
     E6 = find_E_fields(angles, Ae, p, alpha_s)
 
-
+    #???
     back_aperture_obliqueness = 1 / np.cos(theta_6)
 
+    #Defining a meshgrid for x, y, and R
     m = np.linspace(-M,M,num_slices)
     xx, yy = np.meshgrid(m,m)
-    delta_k = k0 * NA_6 / M
     R = np.sqrt(xx**2 + yy**2)
+
+    #Defining k for each position of lens
+    delta_k = k0 * NA_6 / M
     k_xy = delta_k * R
     k_z = np.sqrt(k0**2 - k_xy**2)
 
-
+    #Defining a pupil corresponding to lens 4
     pupil = (theta_5s<np.arcsin(NA_5/n_5))*1
 
+    #Finding a shift corresponding to lens tilt
     shift = int(tilt/90*M)
 
+    #Finding the pupil corresponding to lens 5
     circshift_pupil = np.roll(pupil,shift,axis=1)
-    pupil_prod = pupil*circshift_pupil
 
-    #Do struff after this correct
-    # E_mat = E6
-    E_mat = E6*pupil_prod.reshape(num_slices,num_slices,1)
+    #Propogating through pupils
+    E_mat = E6*circshift_pupil.reshape(num_slices,num_slices,1)
 
-    voxel_size = 1e-6 # um
-    N = int(3 * (( np.floor((( wavelength * M / (NA_6 * voxel_size)) / 3) / 2)) * 2 + 1))
+    #Finding the padding size for fourier transforms
+    N = int(3*((np.floor(((wavelength*M/(NA_6*voxel_size))/3)/2))*2+1))
 
-    z_max = ((num_slices - 2) * voxel_size * Mag)/2
+    #Defining minimum and maximum value of z
+    z_max = ((num_slices-2)*voxel_size*Mag)/2
     z_min = -z_max
+
+    #Finding z-layers of the image
     z_val = np.linspace(z_min,z_max,num_slices)
 
+    #Finding the image of dipole based on electric field
     intensity = find_intensity(E_mat,num_slices,N,back_aperture_obliqueness,z_val,k_z)
 
+    #Scaling the image to fit in 16-bit image
     intensity /= np.amax(intensity)
     img_16 = ((2**16-1)*intensity).astype(np.uint16)
 
+    #Finding the XZ-cross section of the image and gamma transforming it
     XZ = np.log(img_16[num_slices//2,:,:])
+    cont_XZ = XZ/XZ.max()
+    gamm_XZ = cont_XZ**4
 
-    cont_im = XZ/XZ.max()
-    gamm_im = cont_im**4
+    #Plotting the cross section
+    plt.imshow(gamm_XZ)
+    plt.colorbar()
+    plt.show()
 
-    plt.imshow(gamm_im)
-    plt.draw()
-    plt.waitforbuttonpress(0)
-    plt.close()
-
+    #Finding the YZ-cross section of the image and gamma transforming it
     YZ = np.log(img_16[:,num_slices//2,:])
+    cont_YZ = YZ/YZ.max()
+    gamm_YZ = cont_YZ**4
 
-    cont_im = YZ/YZ.max()
-    gamm_im = cont_im**4
+    #Plotting the cross section
+    plt.imshow(gamm_YZ)
+    plt.colorbar()
+    plt.show()
 
-    plt.imshow(gamm_im)
-    plt.draw()
-    plt.waitforbuttonpress(0)
-    plt.close()
-
-
+    #Saving the image stack
     save_stack(img_16,'image/')
