@@ -1,9 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from time import time
 import sys
 from functions import *
-from scipy.io import savemat
+from scipy.fft import fftn
 
 def R_x(alpha):
     """Making the coordinate rotation matrix for clockwise x-rotation
@@ -144,7 +143,7 @@ def E_0(p, phi, theta, Ae):
     k0 = np.transpose(k_0(phi,theta),(1,2,0))
     return Ae*np.cross(np.cross(k0,p),k0)
 
-def find_angles(NAs, n_i, alpha_s, k0, num_slices, meshgrids, delta_k, plot=False):
+def find_angles(NAs, n_i, alpha_s, k0, num_slices, meshgrids, delta_k):
     """Calculating all angle based on NA, refractive indexec,
     image resolution, and wavenumber.
 
@@ -170,7 +169,8 @@ def find_angles(NAs, n_i, alpha_s, k0, num_slices, meshgrids, delta_k, plot=Fals
     Returns
     -------
     List
-        Angles for position 4, 4s, 5s, and 6 in azimuth and polar respectively
+        Angles for position 4, 4s, 5s, and 6 in azimuth
+        and polar respectively, and shift of angle.
     """
     NA_6, NA_5, NA_4 = NAs
     n_5, n_4 = n_i
@@ -204,58 +204,14 @@ def find_angles(NAs, n_i, alpha_s, k0, num_slices, meshgrids, delta_k, plot=Fals
     tmp = np.where(theta_4==min)
     diff = (tmp[1]-tmp[0])[0]
 
-    if plot == True:
-        plt.subplot(131)
-        plt.imshow(np.abs(k4_s[0]))
-        plt.subplot(132)
-        plt.imshow(np.abs(k4_s[1]))
-        plt.subplot(133)
-        plt.imshow(k4_s[2])
-        plt.show()
+    phi = [phi_4, phi_4s, phi_5s, phi_6]
+    theta = [theta_4, theta_4s, theta_5s, theta_6]
 
-        plt.subplot(131)
-        plt.imshow(np.abs(k4[0]))
-        plt.subplot(132)
-        plt.imshow(np.abs(k4[1]))
-        plt.subplot(133)
-        plt.imshow(k4[2])
-        plt.show()
-
-        plt.subplot(141)
-        plt.imshow(theta_6,cmap='inferno')
-        plt.colorbar()
-        plt.subplot(142)
-        plt.imshow(theta_5s,cmap='inferno')
-        plt.colorbar()
-        plt.subplot(143)
-        plt.imshow(theta_4s,cmap='inferno')
-        plt.colorbar()
-        plt.subplot(144)
-        plt.imshow(theta_4,cmap='inferno')
-        plt.colorbar()
-        plt.show()
-
-        plt.subplot(141)
-        plt.imshow(phi_6,cmap='inferno')
-        plt.colorbar()
-        plt.subplot(142)
-        plt.imshow(phi_5s,cmap='inferno')
-        plt.colorbar()
-        plt.subplot(143)
-        plt.imshow(phi_4s,cmap='inferno')
-        plt.colorbar()
-        plt.subplot(144)
-        plt.imshow(phi_4,cmap='inferno')
-        plt.colorbar()
-        plt.show()
-
-
-    angles = [phi_4, phi_4s, phi_5s, phi_6,
-              theta_4, theta_4s, theta_5s, theta_6, diff]
+    angles = [phi, theta, diff]
 
     return angles
 
-def find_E_fields(angles, Ae, p, alpha_s, plot=False):
+def find_E_fields(angles, Ae, p, alpha_s):
     """Calculating electric field in image space
 
     Parameters
@@ -276,7 +232,9 @@ def find_E_fields(angles, Ae, p, alpha_s, plot=False):
     floating point array
         Full electric field in image space (not phase information)
     """
-    phi_4, phi_4s, phi_5s, phi_6, theta_4, theta_4s, theta_5s, theta_6, diff = angles
+    phi, theta, diff = angles
+    phi_4, phi_4s, phi_5s, phi_6 = phi
+    theta_4, theta_4s, theta_5s, theta_6 = theta
 
     #Finding the initial electric field
     E4 = E_0(p, phi_4, theta_4, Ae)
@@ -333,41 +291,6 @@ def find_E_fields(angles, Ae, p, alpha_s, plot=False):
     #Replaces all NaN values with 0 in the final E_field
     E6 = np.nan_to_num(E6)
 
-    if plot == True:
-        plt.subplot(131)
-        plt.imshow(E4[:,:,0],cmap='inferno')
-        plt.colorbar()
-        plt.subplot(132)
-        plt.imshow(E4[:,:,1],cmap='inferno')
-        plt.colorbar()
-        plt.subplot(133)
-        plt.imshow(E4[:,:,2],cmap='inferno')
-        plt.colorbar()
-        plt.show()
-
-        plt.subplot(131)
-        plt.imshow(E5[:,:,0],cmap='inferno')
-        plt.colorbar()
-        plt.subplot(132)
-        plt.imshow(E5[:,:,1],cmap='inferno')
-        plt.colorbar()
-        plt.subplot(133)
-        plt.imshow(E5[:,:,2],cmap='inferno')
-        plt.colorbar()
-        plt.show()
-
-        plt.subplot(131)
-        plt.imshow(E6[:,:,0],cmap='inferno')
-        plt.colorbar()
-        plt.subplot(132)
-        plt.imshow(E6[:,:,1],cmap='inferno')
-        plt.colorbar()
-        plt.subplot(133)
-        plt.imshow(E6[:,:,2],cmap='inferno')
-        plt.colorbar()
-        plt.show()
-
-
     return E6
 
 def find_intensity(E_mat,num_slices,N,back_aperture_obliqueness,z_val,k_z):
@@ -412,48 +335,33 @@ def find_intensity(E_mat,num_slices,N,back_aperture_obliqueness,z_val,k_z):
 
     return intensity
 
-if __name__ == '__main__':
-    #Fidning the wavenumber of the light
-    wavelength = 500e-9
-    k0 = 2 * np.pi / wavelength
+def calculate_image(k0,voxel_size,p,alpha_s,Ae,NAs,n_i,num_slices):
+    """Uses the microscope and dipole variables to calculate image stack
 
-    #Defining voxel size of the camera
-    voxel_size = 5e-6 # um
+    Parameters
+    ----------
+    k0 : float
+        Wavenumber of emission light
+    voxel_size : float
+        Size of pixels in camera (sampling size)
+    p : floating point array
+        Dipole polarization
+    alpha_s : float
+        Tilt of snouty microscope
+    Ae : float
+        Anisotropy
+    NAs : list
+        List of lens NAs in the microscope
+    n_i : list
+        List of refractive indexes in system
+    num_slices : int
+        Resolution of image stack
 
-    #Defining the polarization of the dipole
-    p_phi, p_theta = 0, 0
-    p = np.array((np.sin(p_theta)*np.cos(p_phi),
-                  np.sin(p_theta)*np.sin(p_phi),
-                  np.cos(p_theta)))
-
-    #Defining the light sheet parameters
-    tilt = 30 # [ 0 / 20 / 30]
-    anisotropy = 0 # [0  / 0.4]
-    lightsheet_polarization = 'p' # ['p' / 's']
-    if anisotropy == 0:
-        Ae = 1
-    elif anisotropy == 0.4:
-        Ae = p@P
-
-    #Optical axis unit vectors
-    alpha_s = 90-tilt
-    O_1 = np.array((0,0,1))
-    O_2 = np.array((0,np.sin(alpha_s),np.cos(alpha_s)))
-
-    #Defining the lens apertures
-    NA_1 = 1.27
-    NA_4 = 0.95
-    NA_5 = 1
-    Mag = 40
-    NA_6 = NA_5/Mag
-
-    #Defining refractive indexec
-    n_1 = 1.33
-    n_4 = 1
-    n_5 = 1.7
-
-    #Defining the resolution and half pixel length
-    num_slices = 127
+    Returns
+    -------
+    integer array
+        3D image stack
+    """
     M = (num_slices-1)/2
 
     #Defining a meshgrid for x, y, and R
@@ -466,12 +374,15 @@ if __name__ == '__main__':
     k_xy = delta_k * R
     k_z = np.sqrt(k0**2 - k_xy**2)
 
-    #Finding the angles corresponding to position at objective lens
-    NAs = [NA_6, NA_5, NA_4]
-    n_i = [n_5, n_4]
     meshgrids = [xx, yy, R]
+
+    #Finding the angles corresponding to position at objective lens
     angles = find_angles(NAs, n_i, alpha_s, k0, num_slices, meshgrids, delta_k)
-    phi_4, phi_4s, phi_5s, phi_6, theta_4, theta_4s, theta_5s, theta_6, diff = angles
+
+    #Unpacking the angles
+    phi, theta, diff = angles
+    phi_4, phi_4s, phi_5s, phi_6 = phi
+    theta_4, theta_4s, theta_5s, theta_6 = theta
 
     #Finding the electrical field after lens 6
     E6 = find_E_fields(angles, Ae, p, alpha_s)
@@ -479,25 +390,20 @@ if __name__ == '__main__':
     #???
     back_aperture_obliqueness = 1 / np.cos(theta_6)
 
-
-
     #Defining a pupil corresponding to lens 4
     pupil = (theta_4s<np.arcsin(NA_4/n_4))*1
 
-    #Finding a shift corresponding to lens tilt
-    shift = int(tilt/90*M)
-
-    #Finding the pupil corresponding to lens 5
+    #Finding the shifted pupil
     circshift_pupil = np.roll(pupil,-diff,axis=0)
     zero_strip = np.ones_like(circshift_pupil)
     zero_strip[-diff:] = 0
-
     circshift_pupil *= zero_strip
 
-    pupil_2 = (theta_5s<np.arcsin(NA_5/n_5))*1
+    #Finding the snouty pupil
+    pupil_s = (theta_5s<np.arcsin(NA_5/n_5))*1
 
-
-    effective_aperture = (pupil_2*circshift_pupil).reshape(num_slices,num_slices,1)
+    #Calculating the effective pupil area
+    effective_aperture = (pupil_s*circshift_pupil).reshape(num_slices,num_slices,1)
 
     #Propogating through pupils
     E_mat = E6*effective_aperture
@@ -519,25 +425,64 @@ if __name__ == '__main__':
     intensity /= np.amax(intensity)
     img_16 = ((2**16-1)*intensity).astype(np.uint16)
 
-    #Finding the XZ-cross section of the image and gamma transforming it
-    XZ = np.log(img_16[num_slices//2,:,:])
-    cont_XZ = XZ/XZ.max()
-    gamm_XZ = cont_XZ**4
+    return img_16
 
-    #Plotting the cross section
-    plt.imshow(gamm_XZ)
-    plt.colorbar()
-    plt.show()
+if __name__ == '__main__':
+    #Fidning the wavenumber of the light
+    wavelength = 500e-9 #nm
+    k0 = 2 * np.pi / wavelength
 
-    #Finding the YZ-cross section of the image and gamma transforming it
-    YZ = np.log(img_16[:,num_slices//2,:])
-    cont_YZ = YZ/YZ.max()
-    gamm_YZ = cont_YZ**4
+    #Defining voxel size of the camera
+    voxel_size = 5e-6 #um
 
-    #Plotting the cross section
-    plt.imshow(gamm_YZ)
-    plt.colorbar()
-    plt.show()
+    #Defining the lens apertures
+    NA_4 = 0.95
+    NA_5 = 1
+    Mag = 40
+    NA_6 = NA_5/Mag
+    NAs = [NA_6, NA_5, NA_4]
+
+    #Defining refractive indexec
+    n_4 = 1
+    n_5 = 1.7
+    n_i = [n_5, n_4]
+
+    #Defining the resolution
+    num_slices = 127
+
+    #Defining the polarization of the dipole
+    p_phi, p_theta = 0, 0
+    p = np.array((np.sin(p_theta)*np.cos(p_phi),
+                  np.sin(p_theta)*np.sin(p_phi),
+                  np.cos(p_theta)))
+
+    #Defining the light sheet parameters (tilt in x-axis)
+    tilt = 30 # [ 0 / 20 / 30]
+    alpha_s = 90-tilt
+
+    #Defining lightsheet polarization in x, y, and z
+    lightsheet_polarization = 's' # ['p' / 's']
+    if lightsheet_polarization == 'p':
+        l_x = 0
+        l_y = 1
+        l_z = 0
+    elif lightsheet_polarization == 's':
+        l_x = np.sin(tilt)
+        l_y = 0
+        l_z = np.cos(tilt)
+    l_p = np.array((l_x,l_y,l_z))
+
+    #Defining anisotropy and exitation level
+    anisotropy = 0 # [0  / 0.4]
+    if anisotropy == 0:
+        Ae = 1
+    elif anisotropy == 0.4:
+        Ae = p@l_p
+
+    #Calculating the image stack
+    img_16 = calculate_image(k0,voxel_size,p,alpha_s,Ae,NAs,n_i,num_slices)
+
+    # img_fft = fftn(img_16)
 
     #Saving the image stack
     save_stack(img_16,'image/')
