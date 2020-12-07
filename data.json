@@ -1,0 +1,10 @@
+{
+    "Emission wavelength [nm]": 485.83069041668296,
+    "Azimuth angle dipole [radians]": 5.0276166255487125,
+    "Polar angle dipole [radians]": -0.7609503553867305,
+    "Light sheet angle [degrees]": 30,
+    "Light sheet polarization": "Senkrechte",
+    "Anisotropy coefficient": 1,
+    "Voxel size [microns]": 5.0,
+    "Magnification": 40
+}

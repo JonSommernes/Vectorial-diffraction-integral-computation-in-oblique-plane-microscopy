@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 from functions import *
-from scipy.fft import fftn
+import json
 
 def R_x(alpha):
     """Making the coordinate rotation matrix for clockwise x-rotation
@@ -429,7 +429,8 @@ def calculate_image(k0,voxel_size,p,alpha_s,Ae,NAs,n_i,num_slices):
 
 if __name__ == '__main__':
     #Fidning the wavenumber of the light
-    wavelength = 500e-9 #nm
+    wavelength = np.random.normal(500,25)*1e-9
+    # wavelength = 500e-9 #nm
     k0 = 2 * np.pi / wavelength
 
     #Defining voxel size of the camera
@@ -451,7 +452,9 @@ if __name__ == '__main__':
     num_slices = 127
 
     #Defining the polarization of the dipole
-    p_phi, p_theta = 0, 0
+    # p_phi, p_theta = 0, 0
+    p_phi = np.random.uniform(0,2*np.pi)
+    p_theta = np.random.uniform(-np.pi/2,np.pi/2)
     p = np.array((np.sin(p_theta)*np.cos(p_phi),
                   np.sin(p_theta)*np.sin(p_phi),
                   np.cos(p_theta)))
@@ -482,7 +485,22 @@ if __name__ == '__main__':
     #Calculating the image stack
     img_16 = calculate_image(k0,voxel_size,p,alpha_s,Ae,NAs,n_i,num_slices)
 
-    # img_fft = fftn(img_16)
+    if lightsheet_polarization == 'p':
+        lig_pol = 'Paralell'
+    elif lightsheet_polarization == 's':
+        lig_pol = 'Senkrechte'
+
+    data = {'Emission wavelength [nm]' : wavelength*1e9,
+            'Azimuth angle dipole [radians]' : p_phi,
+            'Polar angle dipole [radians]' : p_theta,
+            'Light sheet angle [degrees]' : tilt,
+            'Light sheet polarization' : lig_pol,
+            'Anisotropy coefficient' : Ae,
+            'Voxel size [microns]' : voxel_size*1e6,
+            'Magnification' : Mag}
+
+    with open("data.json", 'w') as output:
+        json.dump(data, output, indent=4)
 
     #Saving the image stack
     save_stack(img_16,'image/')
