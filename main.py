@@ -335,7 +335,7 @@ def find_intensity(E_mat,num_slices,N,back_aperture_obliqueness,z_val,k_z):
 
     return intensity
 
-def calculate_image(k0,voxel_size,p,alpha_s,Ae,NAs,n_i,num_slices):
+def calculate_image(k0,voxel_size,p,alpha_s,Ae,NAs,n_i,num_slices,wavelength):
     """Uses the microscope and dipole variables to calculate image stack
 
     Parameters
@@ -421,20 +421,58 @@ def calculate_image(k0,voxel_size,p,alpha_s,Ae,NAs,n_i,num_slices):
     #Finding the image of dipole based on electric field
     intensity = find_intensity(E_mat,num_slices,N,back_aperture_obliqueness,z_val,k_z)
 
-    #Scaling the image to fit in 16-bit image
-    intensity /= np.amax(intensity)
-    img_16 = ((2**16-1)*intensity).astype(np.uint16)
+    return intensity
 
-    return img_16
-
-if __name__ == '__main__':
+def imaging(voxel_size,NAs,n_i,num_slices,center_wl,wl_bandwidth,l_p,tilt,anisotropy):
     #Fidning the wavenumber of the light
-    wavelength = np.random.normal(500,25)*1e-9
+    wavelength = np.random.normal(center_wl,wl_bandwidth)*1e-9
     # wavelength = 500e-9 #nm
     k0 = 2 * np.pi / wavelength
 
+    #Defining the polarization of the dipole
+    # p_phi, p_theta = 0, 0
+    p_phi = np.random.uniform(0,2*np.pi)
+    p_theta = np.random.uniform(-np.pi/2,np.pi/2)
+    p = np.array((np.sin(p_theta)*np.cos(p_phi),
+                  np.sin(p_theta)*np.sin(p_phi),
+                  np.cos(p_theta)))
+
+    alpha_s = tilt
+
+    if anisotropy == 0:
+        Ae = 1
+    elif anisotropy == 0.4:
+        Ae = p@l_p
+
+    #Calculating the image stack
+    intensity = calculate_image(k0,voxel_size,p,alpha_s,Ae,NAs,n_i,num_slices,wavelength)
+
+    return intensity
+
+if __name__ == '__main__':
+    center_wl = 500
+    wl_bandwidth = 25
+
     #Defining voxel size of the camera
     voxel_size = 5e-6 #um
+
+    #Defining the light sheet parameters (tilt in x-axis)
+    tilt = 30 # [ 0 / 20 / 30]
+
+    #Defining anisotropy and exitation level
+    anisotropy = 0 # [0  / 0.4]
+
+    #Defining lightsheet polarization in x, y, and z
+    lightsheet_polarization = 's' # ['p' / 's']
+    if lightsheet_polarization == 'p':
+        l_x = 0
+        l_y = 1
+        l_z = 0
+    elif lightsheet_polarization == 's':
+        l_x = np.sin(tilt)
+        l_y = 0
+        l_z = np.cos(tilt)
+    l_p = np.array((l_x,l_y,l_z))
 
     #Defining the lens apertures
     NA_4 = 0.95
@@ -451,52 +489,30 @@ if __name__ == '__main__':
     #Defining the resolution
     num_slices = 127
 
-    #Defining the polarization of the dipole
-    # p_phi, p_theta = 0, 0
-    p_phi = np.random.uniform(0,2*np.pi)
-    p_theta = np.random.uniform(-np.pi/2,np.pi/2)
-    p = np.array((np.sin(p_theta)*np.cos(p_phi),
-                  np.sin(p_theta)*np.sin(p_phi),
-                  np.cos(p_theta)))
+    timepoints = 100
 
-    #Defining the light sheet parameters (tilt in x-axis)
-    tilt = 30 # [ 0 / 20 / 30]
-    alpha_s = 90-tilt
+    image = np.zeros((num_slices,num_slices,num_slices))
 
-    #Defining lightsheet polarization in x, y, and z
-    lightsheet_polarization = 's' # ['p' / 's']
-    if lightsheet_polarization == 'p':
-        l_x = 0
-        l_y = 1
-        l_z = 0
-    elif lightsheet_polarization == 's':
-        l_x = np.sin(tilt)
-        l_y = 0
-        l_z = np.cos(tilt)
-    l_p = np.array((l_x,l_y,l_z))
+    for i in range(timepoints):
+        print(i)
+        image += imaging(voxel_size,NAs,n_i,num_slices,center_wl,wl_bandwidth,l_p,tilt,anisotropy)
 
-    #Defining anisotropy and exitation level
-    anisotropy = 0 # [0  / 0.4]
-    if anisotropy == 0:
-        Ae = 1
-    elif anisotropy == 0.4:
-        Ae = p@l_p
+    #Scaling the image to fit in 16-bit image
+    image /= np.amax(image)
+    img_16 = ((2**16-1)*image).astype(np.uint16)
 
-    #Calculating the image stack
-    img_16 = calculate_image(k0,voxel_size,p,alpha_s,Ae,NAs,n_i,num_slices)
 
     if lightsheet_polarization == 'p':
         lig_pol = 'Paralell'
     elif lightsheet_polarization == 's':
         lig_pol = 'Senkrechte'
 
-    data = {'Emission wavelength [nm]' : wavelength*1e9,
-            'Azimuth angle dipole [radians]' : p_phi,
-            'Polar angle dipole [radians]' : p_theta,
+    data = {'Emission wavelength [nm]' : center_wl*1e9,
             'Light sheet angle [degrees]' : tilt,
             'Light sheet polarization' : lig_pol,
-            'Anisotropy coefficient' : Ae,
             'Voxel size [microns]' : voxel_size*1e6,
+            'Anisotropy value' : anisotropy,
+            'Time points' : timepoints,
             'Magnification' : Mag}
 
     with open("data.json", 'w') as output:
