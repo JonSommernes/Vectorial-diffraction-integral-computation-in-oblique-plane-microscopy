@@ -1,0 +1,9 @@
+{
+    "Emission wavelength [nm]": 500000000000.0,
+    "Light sheet angle [degrees]": 0,
+    "Light sheet polarization": "Paralell",
+    "Voxel size [microns]": 5.0,
+    "Anisotropy value": 0,
+    "Time points": 100,
+    "Magnification": 40
+}

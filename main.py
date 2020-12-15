@@ -1,8 +1,18 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import sys
+import sys, os
 from functions import *
 import json
+import warnings
+
+def loadbar(counter,len):
+    counter +=1
+    done = (counter*100)//len
+    sys.stdout.write('\r')
+    sys.stdout.write("[%-100s] %d%%" % ('='*done, done))
+    sys.stdout.flush()
+    if counter == len:
+        print('\n')
 
 def R_x(alpha):
     """Making the coordinate rotation matrix for clockwise x-rotation
@@ -321,17 +331,9 @@ def find_intensity(E_mat,num_slices,N,back_aperture_obliqueness,z_val,k_z):
     E_field = np.zeros((num_slices,num_slices,3,num_slices),dtype=np.complex128)
 
     for k_index in range(num_slices):
-        if k_index%(num_slices//100)==0:
-            done = (k_index*100)//num_slices+1
-            sys.stdout.write('\r')
-            sys.stdout.write("[%-100s] %d%%" % ('='*done, done))
-            sys.stdout.flush()
-
         E_field[:, :, :, k_index] = propagate(M, N, k_z, z_val[k_index], back_aperture_obliqueness, E_mat)
 
     intensity = np.sum(np.abs(E_field)**2,axis=2)
-
-    sys.stdout.write('\n')
 
     return intensity
 
@@ -377,7 +379,9 @@ def calculate_image(k0,voxel_size,p,alpha_s,Ae,NAs,n_i,num_slices,wavelength):
     meshgrids = [xx, yy, R]
 
     #Finding the angles corresponding to position at objective lens
+    warnings.filterwarnings('ignore')
     angles = find_angles(NAs, n_i, alpha_s, k0, num_slices, meshgrids, delta_k)
+    warnings.resetwarnings()
 
     #Unpacking the angles
     phi, theta, diff = angles
@@ -424,6 +428,34 @@ def calculate_image(k0,voxel_size,p,alpha_s,Ae,NAs,n_i,num_slices,wavelength):
     return intensity
 
 def imaging(voxel_size,NAs,n_i,num_slices,center_wl,wl_bandwidth,l_p,tilt,anisotropy):
+    """Function that randomizes variables for every iteration of imaging
+
+    Parameters
+    ----------
+    voxel_size : float
+        Pixel size of camera
+    NAs : list of floats
+        list of NA 6, 5, and 4 respectively
+    n_i : list of floats
+        list of n_5, and n_4
+    num_slices : int
+        Reconstruction size in pixels
+    center_wl : float
+        Average wavelength of light emission
+    wl_bandwidth : float
+        Variance of light emission
+    l_p : floating point numpy array
+        Lightsheet polarization in x, y, and z
+    tilt : int
+        Tilt of lightsheet in degrees
+    anisotropy : float
+        Anisotropy of the dipole
+
+    Returns
+    -------
+    integer array
+        3D image stack
+    """
     #Fidning the wavenumber of the light
     wavelength = np.random.normal(center_wl,wl_bandwidth)*1e-9
     # wavelength = 500e-9 #nm
@@ -456,24 +488,6 @@ if __name__ == '__main__':
     #Defining voxel size of the camera
     voxel_size = 5e-6 #um
 
-    #Defining the light sheet parameters (tilt in x-axis)
-    tilt = 30 # [ 0 / 20 / 30]
-
-    #Defining anisotropy and exitation level
-    anisotropy = 0 # [0  / 0.4]
-
-    #Defining lightsheet polarization in x, y, and z
-    lightsheet_polarization = 's' # ['p' / 's']
-    if lightsheet_polarization == 'p':
-        l_x = 0
-        l_y = 1
-        l_z = 0
-    elif lightsheet_polarization == 's':
-        l_x = np.sin(tilt)
-        l_y = 0
-        l_z = np.cos(tilt)
-    l_p = np.array((l_x,l_y,l_z))
-
     #Defining the lens apertures
     NA_4 = 0.95
     NA_5 = 1
@@ -491,32 +505,78 @@ if __name__ == '__main__':
 
     timepoints = 100
 
-    image = np.zeros((num_slices,num_slices,num_slices))
+    #Defining the light sheet parameters (tilt in x-axis)
+    tilt = 30 # [ 0 / 20 / 30]
+    #Defining anisotropy and exitation level
+    anisotropy = 0 # [0  / 0.4]
+    #Defining lightsheet polarization in x, y, and z
+    lightsheet_polarization = 's' # ['p' / 's']
 
-    for i in range(timepoints):
-        print(i)
-        image += imaging(voxel_size,NAs,n_i,num_slices,center_wl,wl_bandwidth,l_p,tilt,anisotropy)
+    for tilt in [0,20,30]:
+        for anisotropy in [0,0.4]:
+            for lightsheet_polarization in ['p','s']:
 
-    #Scaling the image to fit in 16-bit image
-    image /= np.amax(image)
-    img_16 = ((2**16-1)*image).astype(np.uint16)
+                dir_1 = 'tilt_{}_degrees'.format(tilt)+'__'
+                dir_2 = 'anisotropy_{}'.format(anisotropy)+'__'
+                dir_3 = 'lightsheet_polarization_'+lightsheet_polarization
+                dir = dir_1+dir_2+dir_3
+
+                inp = 'n'
+                if dir in os.listdir('images/'):
+                    print(dir+' already exists. Do you wish to replace the image? [y/n]')
+                    while 1:
+                        inp = input()
+                        if inp == 'y':
+                            print('Replacing existing image.\n')
+                            break
+                        elif inp == 'n':
+                            print('Continuing to next image.\n')
+                            break
+                        else:
+                            print('Command not recognized, try again.')
+
+                if dir not in os.listdir('images/') or inp == 'y':
+
+                    if lightsheet_polarization == 'p':
+                        l_x = 0
+                        l_y = 1
+                        l_z = 0
+                    elif lightsheet_polarization == 's':
+                        l_x = np.sin(tilt)
+                        l_y = 0
+                        l_z = np.cos(tilt)
+                    l_p = np.array((l_x,l_y,l_z))
+
+                    image = np.zeros((num_slices,num_slices,num_slices))
+
+                    for i in range(timepoints):
+                        if i%(timepoints//100)==0:
+                            loadbar(i,timepoints)
+                        image += imaging(voxel_size,NAs,n_i,num_slices,center_wl,wl_bandwidth,l_p,tilt,anisotropy)
+
+                    #Scaling the image to fit in 16-bit image
+                    image /= np.amax(image)
+                    img_16 = ((2**16-1)*image).astype(np.uint16)
 
 
-    if lightsheet_polarization == 'p':
-        lig_pol = 'Paralell'
-    elif lightsheet_polarization == 's':
-        lig_pol = 'Senkrechte'
+                    if lightsheet_polarization == 'p':
+                        lig_pol = 'Paralell'
+                    elif lightsheet_polarization == 's':
+                        lig_pol = 'Senkrechte'
 
-    data = {'Emission wavelength [nm]' : center_wl*1e9,
-            'Light sheet angle [degrees]' : tilt,
-            'Light sheet polarization' : lig_pol,
-            'Voxel size [microns]' : voxel_size*1e6,
-            'Anisotropy value' : anisotropy,
-            'Time points' : timepoints,
-            'Magnification' : Mag}
+                    data = {'Emission wavelength [nm]' : center_wl*1e9,
+                            'Light sheet angle [degrees]' : tilt,
+                            'Light sheet polarization' : lig_pol,
+                            'Voxel size [microns]' : voxel_size*1e6,
+                            'Anisotropy value' : anisotropy,
+                            'Time points' : timepoints,
+                            'Magnification' : Mag}
 
-    with open("data.json", 'w') as output:
-        json.dump(data, output, indent=4)
+                    if dir not in os.listdir('images/'):
+                        os.mkdir('images/'+dir)
+                        os.mkdir('images/'+dir+'/'+'image')
+                    with open('images/'+dir+'/'+"data.json", 'w') as output:
+                        json.dump(data, output, indent=4)
 
-    #Saving the image stack
-    save_stack(img_16,'image/')
+                    #Saving the image stack
+                    save_stack(img_16,'images/'+dir+'/'+'image/')
